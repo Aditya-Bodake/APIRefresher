@@ -1,0 +1,6 @@
+@APIRefresher_HostAddress = http://localhost:5094
+
+GET {{APIRefresher_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
