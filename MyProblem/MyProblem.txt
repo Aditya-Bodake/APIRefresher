@@ -1,0 +1,99 @@
+public class Program
+    {
+        private static readonly string[] _secretPaths = new string[] { 
+            "Vodasure/Credentials/PulseApiOptions",
+            "Vodasure/Credentials/FusionOptions" 
+        };
+        private static readonly string[] _connStringSecretPaths = new string[]{
+            "/aws/reference/secretsmanager/Vodasure/ConnectionStrings/VodasureDatabase",
+            "/aws/reference/secretsmanager/Vodasure/ConnectionStrings/CorporatePaymentsSystemDatabase",
+            "/aws/reference/secretsmanager/Vodasure/ConnectionStrings/MySqlDatabase",
+            "/Vodasure"
+        };
+        
+        public static void Main(string[] args)
+        {
+            CreateHostBuilder(args).Build().Run();
+        }
+
+        public static IHostBuilder CreateHostBuilder(string[] args) =>
+            Host.CreateDefaultBuilder(args)
+                .UseLamar()
+                .ConfigureAppConfiguration((hostingContext, config) =>
+                {
+                    foreach (var path in _connStringSecretPaths)
+                    {
+                        config.AddSystemsManager(configureSource: ops =>
+                        {
+                            ops.Path = path;
+                            ops.ParameterProcessor = new CustomParameterProcessor("VodaSure.Financial.Api");
+                        });
+                    }
+                    
+                    config.AddSecretsManager(configurator: options =>
+                    {
+                        options.SecretFilter = entry => _secretPaths.Contains(entry.Name);
+                        options.KeyGenerator = CustomKeyGenerator.GetKey; 
+                    });
+                })
+                .ConfigureLogging((hostingContext, logging) =>
+                {
+                    logging.AddConfiguration(hostingContext.Configuration.GetSection("Logging"));
+                    logging.AddConsole();
+                    logging.AddDebug();
+                    logging.AddEventSourceLogger();
+                })
+                .ConfigureServices((hostContext, services) =>
+                {
+                    var options = hostContext.Configuration.GetAWSOptions();
+                    services.AddDefaultAWSOptions(options);
+                    services.AddAWSService<IAmazonSQS>();
+                })
+                .ConfigureContainer<ServiceRegistry>(services =>
+                {
+                    services.Scan(s =>
+                    {
+                        s.AssembliesFromApplicationBaseDirectory(a =>
+                        {
+                            var name = a.GetName().Name;
+                            return name != null && name
+                                .StartsWith("Vodasure", StringComparison.OrdinalIgnoreCase);
+                        });
+
+                        s.WithDefaultConventions(ServiceLifetime.Scoped);
+                    });
+                })
+                .ConfigureWebHostDefaults(webBuilder => { webBuilder.UseStartup<Startup>(); });
+    }
+
+
+I want the above ConfigureAppConfiguration code to be added in below .Net core 9 project code. Where can I add? 
+
+
+
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+
+builder.Services.AddControllers();
+// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseHttpsRedirection();
+
+app.UseAuthorization();
+
+app.MapControllers();
+
+app.Run();
