@@ -1,99 +1,90 @@
-public class Program
-    {
-        private static readonly string[] _secretPaths = new string[] { 
-            "Vodasure/Credentials/PulseApiOptions",
-            "Vodasure/Credentials/FusionOptions" 
-        };
-        private static readonly string[] _connStringSecretPaths = new string[]{
-            "/aws/reference/secretsmanager/Vodasure/ConnectionStrings/VodasureDatabase",
-            "/aws/reference/secretsmanager/Vodasure/ConnectionStrings/CorporatePaymentsSystemDatabase",
-            "/aws/reference/secretsmanager/Vodasure/ConnectionStrings/MySqlDatabase",
-            "/Vodasure"
-        };
-        
-        public static void Main(string[] args)
-        {
-            CreateHostBuilder(args).Build().Run();
-        }
 
-        public static IHostBuilder CreateHostBuilder(string[] args) =>
-            Host.CreateDefaultBuilder(args)
-                .UseLamar()
-                .ConfigureAppConfiguration((hostingContext, config) =>
-                {
-                    foreach (var path in _connStringSecretPaths)
-                    {
-                        config.AddSystemsManager(configureSource: ops =>
-                        {
-                            ops.Path = path;
-                            ops.ParameterProcessor = new CustomParameterProcessor("VodaSure.Financial.Api");
-                        });
-                    }
-                    
-                    config.AddSecretsManager(configurator: options =>
-                    {
-                        options.SecretFilter = entry => _secretPaths.Contains(entry.Name);
-                        options.KeyGenerator = CustomKeyGenerator.GetKey; 
-                    });
-                })
-                .ConfigureLogging((hostingContext, logging) =>
-                {
-                    logging.AddConfiguration(hostingContext.Configuration.GetSection("Logging"));
-                    logging.AddConsole();
-                    logging.AddDebug();
-                    logging.AddEventSourceLogger();
-                })
-                .ConfigureServices((hostContext, services) =>
-                {
-                    var options = hostContext.Configuration.GetAWSOptions();
-                    services.AddDefaultAWSOptions(options);
-                    services.AddAWSService<IAmazonSQS>();
-                })
-                .ConfigureContainer<ServiceRegistry>(services =>
-                {
-                    services.Scan(s =>
-                    {
-                        s.AssembliesFromApplicationBaseDirectory(a =>
-                        {
-                            var name = a.GetName().Name;
-                            return name != null && name
-                                .StartsWith("Vodasure", StringComparison.OrdinalIgnoreCase);
-                        });
+ClaimsController will have below endpoints: 
 
-                        s.WithDefaultConventions(ServiceLifetime.Scoped);
-                    });
-                })
-                .ConfigureWebHostDefaults(webBuilder => { webBuilder.UseStartup<Startup>(); });
-    }
+/claim-search GET API to search claims by passing MSISDN, IMEI and all currently supported search criteria for newclaims structure.
+
+/claim POST Create claim from mini app as well as from Vodasure for IAA policies. This API will send details about policy, customer, incident details and other required details for creating claim with initial status in system.
+
+/claims GET Get all claims. 
+
+/claim/{id} GET Get claim by claim ID. NEW 
+
+/claim/{id} PUT Update claim details for given identifier. New 
+
+/claim/{id} PATCH Patch required data for given claim. New 
+
+/claim/:id/status PATCH Update only status of claim. New 
+
+/claim/payment-details POST Capture bank details for cash claims. New. 
+
+/claim/beneficiary-details POST Capture beneficiary details for contract cover claims. New
 
 
-I want the above ConfigureAppConfiguration code to be added in below .Net core 9 project code. Where can I add? 
+ClaimsValidationController will have below endpoints:
+
+/claim-validate POST API to validate each claim line item for pre-defined set of validation rules. New 
+
+/claim-validation-rules GET Get validation rules by claim type and asset type. New 
+
+/validate-result-update POST Capture details about manual validation result, e.g., if arrears check is passed manually. This API should capture details of the same.
 
 
+ClaimsItemController will have below endpoints:
+
+/claim-item/ POST Create claim line item for given claim. New 
+
+/claim-items POST Create collection of claim line items. New 
+
+/claim-item/{id} GET Get claim line item for given ID. New 
+
+/claim-item/{id} PUT Update claim line item. New 
+
+/claim-item/:claimId/claim-items GET Get all claim line items for passed claim ID. New 
+
+/claim-item/:id/status PATCH Update status and sub-status of claim line item. New
 
 
-var builder = WebApplication.CreateBuilder(args);
+ClaimsDocumentController will have below endpoints:
 
-// Add services to the container.
+/document-upload POST API to upload document/evidence for given claim or claim line item. This API will do file extension validations, size validation, and all basic validations needed before uploading file to s3. New 
 
-builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+/document/{id} GET Get document by ID and/or doc type for given claim or claim line item. New 
 
-var app = builder.Build();
+/document/{id} DELETE Delete document for given claim or claim line item. New 
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+/document?{type}&{assetType}&claimType GET Get number of documents required to upload as per claim type, asset type, and document type. For example, get number of quotes required for a household asset. New 
 
-app.UseHttpsRedirection();
+/document-download/ POST Download document for given (claim ID / claim line item ID) and s3 link. New 
 
-app.UseAuthorization();
+/document?claimId&documentType GET Get document by document type and claim ID.
 
-app.MapControllers();
 
-app.Run();
+Document generation Service: This service is used to generate required documents for claims process. For example, settlement letters and rejection letters in cash claims flow. 
+
+Rejection-letter-download GET This API is used to download rejection letter. Existing 
+
+rejection-letter-send POST API used to generate rejection letter for given
+
+
+Blacklist Service: 
+
+/blackList/blacklist-device POST Blacklist device if it’s stolen or lost. Existing 
+
+/blacklist/unblacklist-device POST Capability to remove blacklisting. Existing
+
+Claim ex-gratia Service:
+
+/claim-ex-gratia POST API to create ex-gratia request for approval. New 
+
+/claim-ex-gratia-approve PATCH Approve existing ex-gratia request. New
+
+
+Claim Note Service:
+
+/claim-note POST API to create claim item note. New 
+
+/claim-note/{id} GET API to get claim note by ID. New 
+
+/claim-note/{id} PUT API to update claim note. New
+
+
